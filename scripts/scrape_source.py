@@ -86,7 +86,10 @@ def sanitize_text(t: str) -> str:
 def sanitize_node(node: Tag):
     """就地清洗: 展开外链, 删除 Source 段落, 清理文本"""
     for a in node.find_all("a"):
-        a.unwrap()
+        href = a.get("href", "")
+        # 只剥离站外链接(多为数据源署名); 保留 #锚点 内链——传导链卡片等依赖它们做容器与跳转
+        if href.startswith("http://") or href.startswith("https://"):
+            a.unwrap()
     # 阶段标题: 已有中文 zh 副标时, 去掉前面的英文主标
     for st in node.find_all("span", class_="stage-title"):
         zh = st.find("span", class_="zh")
