@@ -3,3 +3,11 @@ dist/
 scripts/cache/
 scripts/*.txt
 __pycache__/
+
+# 本地验证临时文件
+dist-test/
+subpath-test/
+*.log
+live_*.json
+rw*.html
+rh.html
