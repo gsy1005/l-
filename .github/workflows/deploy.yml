@@ -27,27 +27,15 @@ jobs:
         with:
           python-version: "3.12"
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
       - name: 安装 Python 依赖
         run: pip install beautifulsoup4 lxml
 
-      - name: 抓取源站并生成 site.json
-        run: python scripts/scrape_source.py
-
-      - name: 安装前端依赖
-        working-directory: app
-        run: npm ci || npm install
-
-      - name: 构建静态站点
-        working-directory: app
-        run: npm run build
+      - name: 抓取源站并整页汉化为静态站点
+        run: python scripts/build_static.py
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: app/dist
+          path: static-dist
 
   deploy:
     needs: build

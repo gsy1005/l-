@@ -11,3 +11,4 @@ subpath-test/
 live_*.json
 rw*.html
 rh.html
+static-dist/

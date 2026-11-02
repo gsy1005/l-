@@ -54,6 +54,7 @@ EXACT = {
     "Amplifiers & triggers": "放大器与触发器", "Recovery signals": "修复信号",
     "Stress calendar": "压力日历", "Methods & data health": "方法与数据健康",
     "Market Fragility Dashboard": "美元流动性监测面板",
+    "/ NDX": "/ 市场脆弱性",
     "Dollar Funding Pressure": "美元资金压力",
     "美元资金压力· SOFR−IORB + bank reserves + TGA": "美元资金压力 · SOFR−IORB + 银行准备金 + TGA",
     "Liquidity Pressure Index (backdrop, weekly)": "流动性压力指数 (背景, 周度)",
