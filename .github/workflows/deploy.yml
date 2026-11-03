@@ -4,8 +4,8 @@ on:
   push:
     branches: [main]
   schedule:
-    # 每天北京时间 08:07 和 20:07 (UTC 00:07 / 12:07) 抓取源站最新数据并重新部署
-    - cron: "7 0,12 * * *"
+    # 每小时第 43 分检查源站; 数据有变化才重新部署 (无变化几秒即结束)
+    - cron: "43 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -20,6 +20,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.build.outputs.changed }}
     steps:
       - uses: actions/checkout@v4
 
@@ -30,15 +32,21 @@ jobs:
       - name: 安装 Python 依赖
         run: pip install beautifulsoup4 lxml
 
-      - name: 抓取源站并整页汉化为静态站点
+      - name: 抓取源站并整页汉化 (数据无变化则跳过部署)
+        id: build
+        env:
+          # push / 手动触发总是全量部署; 定时任务按需部署
+          FORCE: ${{ github.event_name != 'schedule' && '1' || '' }}
         run: python scripts/build_static.py
 
       - uses: actions/upload-pages-artifact@v3
+        if: steps.build.outputs.changed == 'true'
         with:
           path: static-dist
 
   deploy:
     needs: build
+    if: needs.build.outputs.changed == 'true'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

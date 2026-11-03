@@ -86,6 +86,28 @@ def translate_text_nodes(soup: BeautifulSoup):
     return n_changed
 
 
+SITE_URL = "https://gsy1005.github.io/l-/"
+
+
+def set_gh_output(key: str, value: str):
+    """写 GitHub Actions step 输出 (本地运行时静默跳过)"""
+    gh = os.environ.get("GITHUB_OUTPUT")
+    if gh:
+        with open(gh, "a", encoding="utf-8") as f:
+            f.write(f"{key}={value}\n")
+
+
+def timestamp_of(html: str, label: str):
+    m = re.search(label + r"[:：]?\s*((?:20\d\d)-\d\d-\d\d\s+\d\d:\d\d\s*UTC)", html)
+    return m.group(1).strip() if m else None
+
+
+def fetch_url(url: str) -> str:
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return r.read().decode("utf-8")
+
+
 def main():
     if "--cached" in sys.argv and os.path.exists(CACHE_HTML):
         html = open(CACHE_HTML, encoding="utf-8").read()
@@ -93,6 +115,22 @@ def main():
     else:
         html = fetch_source()
         print("已抓取源站:", len(html), "字节")
+
+    # 定时运行时: 源站时间戳与线上一致则跳过部署 (省资源; push/手动触发总是全量部署)
+    if not os.environ.get("FORCE") and "--cached" not in sys.argv:
+        src_ts = timestamp_of(html, "Last updated")
+        try:
+            ours = fetch_url(SITE_URL + "?t=" + str(int(__import__("time").time())))
+            our_ts = timestamp_of(ours, "更新于")
+        except Exception as e:
+            our_ts = None
+            print("读取线上站点失败, 照常部署:", e)
+        print("源站时间:", src_ts, "| 线上时间:", our_ts)
+        if src_ts and src_ts == our_ts:
+            set_gh_output("changed", "false")
+            print("数据未变化, 跳过部署")
+            return
+    set_gh_output("changed", "true")
 
     soup = BeautifulSoup(html, "lxml")
 
