@@ -4,8 +4,8 @@ on:
   push:
     branches: [main]
   schedule:
-    # 每小时第 43 分抓取源站最新数据并重新部署
-    - cron: "43 * * * *"
+    # 每天北京时间 08:07 和 20:07 (UTC 00:07 / 12:07) 抓取源站最新数据并重新部署
+    - cron: "7 0,12 * * *"
   workflow_dispatch:
 
 permissions:
