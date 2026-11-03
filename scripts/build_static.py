@@ -87,6 +87,57 @@ def translate_text_nodes(soup: BeautifulSoup):
 
 
 SITE_URL = "https://gsy1005.github.io/l-/"
+LIVE_FLAG = os.path.join(HERE, ".force-rebuild")  # live_data.py 检测到官方数据有更新时置位
+
+# 实时快线横幅: 官方数据直连, 数据在 live.js 中, 由 hourly 任务更新
+LIVE_STRIP_HTML = """
+<div id="live-strip">
+  <div class="ls-head">实时快线 · 官方数据直连 <span id="ls-updated"></span></div>
+  <div class="ls-items" id="ls-items"></div>
+</div>
+<style>
+#live-strip{margin:10px 20px 0;background:var(--surface,#141720);border:1px solid var(--border,#1e2530);border-left:3px solid #6366f1;border-radius:10px;padding:10px 14px}
+.ls-head{font-size:12px;font-weight:700;color:#cbd5e1;letter-spacing:.04em;margin-bottom:8px}
+.ls-head span{color:#64748b;font-weight:400;margin-left:8px}
+.ls-items{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.ls-items::-webkit-scrollbar{display:none}
+.ls-item{flex:0 0 auto;min-width:118px;background:var(--bg,#0f131b);border:1px solid var(--border,#1e2530);border-radius:8px;padding:8px 10px}
+.ls-k{font-size:11px;color:#94a3b8;white-space:nowrap}
+.ls-v{font-size:17px;font-weight:700;color:#e2e8f0;font-variant-numeric:tabular-nums;margin-top:2px}
+.ls-dt{font-size:10.5px;color:#64748b;margin-top:2px;white-space:nowrap}
+.ls-d{margin-left:5px}
+.ls-d.up{color:#f87171}.ls-d.down{color:#34d399}.ls-d.flat{color:#64748b}
+</style>
+<script src="live.js"></script>
+<script>
+(function(){
+  function fmt(it){
+    var v=it.value;
+    if(it.unit==='$B'&&Math.abs(v)>=1000)return (v/1000).toFixed(2)+'T';
+    if(it.unit==='%')return v.toFixed(2)+'%';
+    if(it.unit==='bp')return v.toFixed(1)+' bp';
+    if(it.unit==='$B')return v.toFixed(0)+'B';
+    return v.toFixed(2);
+  }
+  function render(){
+    var D=window.LIVE_DATA, box=document.getElementById('ls-items');
+    if(!D||!D.items||!D.items.length){var s=document.getElementById('live-strip');if(s)s.style.display='none';return;}
+    document.getElementById('ls-updated').textContent='更新于 '+D.updated;
+    var html='';
+    D.items.forEach(function(it){
+      var d='';
+      if(it.prev!=null){var diff=it.value-it.prev;
+        var cls=diff>0.0001?'up':(diff<-0.0001?'down':'flat');
+        var sym=diff>0.0001?'▲':(diff<-0.0001?'▼':'–');
+        d='<span class="ls-d '+cls+'">'+sym+' '+Math.abs(diff).toFixed(2)+'</span>';}
+      html+='<div class="ls-item"><div class="ls-k">'+it.label+'</div><div class="ls-v">'+fmt(it)+'</div><div class="ls-dt">'+it.date+d+'</div></div>';
+    });
+    box.innerHTML=html;
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',render);else render();
+})();
+</script>
+"""
 
 
 def set_gh_output(key: str, value: str):
@@ -116,7 +167,7 @@ def main():
         html = fetch_source()
         print("已抓取源站:", len(html), "字节")
 
-    # 定时运行时: 源站时间戳与线上一致则跳过部署 (省资源; push/手动触发总是全量部署)
+    # 定时运行时: 源站时间戳与线上一致 且 官方实时数据也无更新 → 跳过部署 (省资源; push/手动触发总是全量部署)
     if not os.environ.get("FORCE") and "--cached" not in sys.argv:
         src_ts = timestamp_of(html, "Last updated")
         try:
@@ -125,12 +176,15 @@ def main():
         except Exception as e:
             our_ts = None
             print("读取线上站点失败, 照常部署:", e)
-        print("源站时间:", src_ts, "| 线上时间:", our_ts)
-        if src_ts and src_ts == our_ts:
+        live_changed = os.path.exists(LIVE_FLAG)
+        print("源站时间:", src_ts, "| 线上时间:", our_ts, "| 实时数据有更新:", live_changed)
+        if src_ts and src_ts == our_ts and not live_changed:
             set_gh_output("changed", "false")
             print("数据未变化, 跳过部署")
             return
     set_gh_output("changed", "true")
+    if os.path.exists(LIVE_FLAG):
+        os.remove(LIVE_FLAG)
 
     soup = BeautifulSoup(html, "lxml")
 
@@ -159,6 +213,13 @@ def main():
     # 5. 语言标记
     if soup.html:
         soup.html["lang"] = "zh-CN"
+    # 6. 在页头下方注入"实时快线"横幅 (数据来自官方接口, 见 scripts/live_data.py)
+    header = soup.find("div", class_="header")
+    if header:
+        frag = BeautifulSoup(LIVE_STRIP_HTML, "html.parser")
+        for el in reversed(list(frag.contents)):
+            header.insert_after(el)
+        print("已注入实时快线横幅")
 
     os.makedirs(OUT_DIR, exist_ok=True)
     doctype = "<!doctype html>\n" if html.lstrip().lower().startswith("<!doctype") else ""

@@ -32,6 +32,9 @@ jobs:
       - name: 安装 Python 依赖
         run: pip install beautifulsoup4 lxml
 
+      - name: 抓取官方实时数据 (FRED / 纽约联储)
+        run: python scripts/live_data.py
+
       - name: 抓取源站并整页汉化 (数据无变化则跳过部署)
         id: build
         env:

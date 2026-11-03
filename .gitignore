@@ -14,3 +14,4 @@ rh.html
 static-dist/
 live_now.html
 src_now.html
+.force-rebuild
